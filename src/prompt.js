@@ -38,7 +38,7 @@ Task: Produce the structured Markdown report described in the system prompt. Tai
 to the supplied plan and call out any missing information you need from the researcher.
 `.trim();
 
-module.exports = {
+export {
   BASE_SYSTEM_PROMPT,
   buildUserPrompt,
 };
