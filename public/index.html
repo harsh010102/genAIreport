@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>GenAI Reporting Checklist Builder</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <h1>Reporting Standards in the GenAI Era</h1>
+      <p>
+        Paste your research plan and receive a tailored, theory-backed reporting
+        checklist for GenAI projects.
+      </p>
+
+      <form id="checklist-form">
+        <label>
+          Research Plan or Project Brief
+          <textarea
+            name="researchPlan"
+            placeholder="Describe the GenAI system, data, prompts, evaluation goals, ethics guardrails, etc."
+            required
+          ></textarea>
+        </label>
+
+        <label>
+          Project Stage (optional)
+          <select name="projectStage">
+            <option value="">Select a stage</option>
+            <option>Ideation</option>
+            <option>Pilot / Sandbox</option>
+            <option>Experimental Study</option>
+            <option>Evaluation / Benchmarking</option>
+            <option>Deployment</option>
+          </select>
+        </label>
+
+        <button type="submit">Generate Checklist</button>
+        <div class="status" id="status-area"></div>
+      </form>
+
+      <section class="output-card" hidden id="output-card">
+        <h2>Generated Checklist</h2>
+        <pre id="output"></pre>
+      </section>
+    </main>
+
+    <script>
+      const form = document.getElementById("checklist-form");
+      const statusArea = document.getElementById("status-area");
+      const outputCard = document.getElementById("output-card");
+      const output = document.getElementById("output");
+      const button = form.querySelector("button");
+
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const formData = new FormData(form);
+        const researchPlan = formData.get("researchPlan")?.trim();
+        const projectStage = formData.get("projectStage")?.trim();
+
+        if (!researchPlan || researchPlan.length < 25) {
+          statusArea.textContent =
+            "Please provide at least a couple of sentences describing the project.";
+          return;
+        }
+
+        button.disabled = true;
+        statusArea.textContent = "Requesting checklist...";
+        outputCard.hidden = true;
+
+        try {
+          const response = await fetch("/api/checklist", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ researchPlan, projectStage }),
+          });
+
+          const payload = await response.json();
+          if (!response.ok) {
+            throw new Error(payload.error || "Unexpected server error.");
+          }
+
+          output.textContent = payload.checklist;
+          outputCard.hidden = false;
+          statusArea.textContent = "Checklist ready.";
+        } catch (error) {
+          console.error(error);
+          statusArea.textContent = `Error: ${error.message}`;
+        } finally {
+          button.disabled = false;
+        }
+      });
+    </script>
+  </body>
+</html>
+
