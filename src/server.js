@@ -34,7 +34,7 @@ app.get("/api/health", (_req, res) => {
 });
 
 app.post("/api/checklist", async (req, res) => {
-  const { researchPlan, projectStage } = req.body || {};
+  const { researchPlan, projectStage, config } = req.body || {};
 
   if (!researchPlan || researchPlan.trim().length < 25) {
     return res.status(400).json({
@@ -49,16 +49,19 @@ app.post("/api/checklist", async (req, res) => {
   }
 
   try {
-    let response = "";
-    
+    let responseText = "";
+
+    // Build prompts with JSON-only requirement
+    const prompts = buildUserPrompt({ researchPlan, projectStage, config });
+
     const stream = await openrouter.chat.send({
       model: OPENROUTER_MODEL,
       messages: [
-        { role: "system", content: BASE_SYSTEM_PROMPT },
-        { role: "user", content: buildUserPrompt({ researchPlan, projectStage }) },
+        { role: "system", content: prompts.system },
+        { role: "user", content: prompts.user },
       ],
-      temperature: 0.35,
-      max_tokens: 900,
+      temperature: config?.temperature ?? 0.35,
+      max_tokens: config?.maxTokens ?? 900,
       stream: true,
       streamOptions: {
         includeUsage: true,
@@ -68,18 +71,47 @@ app.post("/api/checklist", async (req, res) => {
     for await (const chunk of stream) {
       const content = chunk.choices[0]?.delta?.content;
       if (content) {
-        response += content;
+        responseText += content;
       }
     }
 
-    const checklist = response.trim();
-    if (!checklist) {
-      return res
-        .status(502)
-        .json({ error: "LLM returned an empty response. Please retry." });
+    const trimmed = responseText.trim();
+    if (!trimmed) {
+      return res.status(502).json({ error: "LLM returned an empty response. Please retry." });
     }
 
-    res.json({ checklist });
+    // Try to parse JSON from the model output
+    let parsed = null;
+    try {
+      parsed = JSON.parse(trimmed);
+    } catch (e) {
+      // try to extract JSON substring
+      const jsonMatch = trimmed.match(/\{[\s\S]*\}|\[[\s\S]*\]/m);
+      if (jsonMatch) {
+        try {
+          parsed = JSON.parse(jsonMatch[0]);
+        } catch (e2) {
+          parsed = null;
+        }
+      }
+    }
+
+    let checklistItems = null;
+    if (parsed) {
+      if (Array.isArray(parsed)) checklistItems = parsed;
+      else if (Array.isArray(parsed.items)) checklistItems = parsed.items;
+    }
+
+    // If parsing failed, fall back to returning raw text (frontend will try to recover)
+    const checklistPayload = checklistItems || trimmed;
+
+    res.json({
+      checklist: checklistPayload,
+      generatedAt: new Date().toISOString(),
+      projectStage,
+      model: OPENROUTER_MODEL,
+      raw: trimmed,
+    });
   } catch (error) {
     console.error("OpenRouter error", error?.response?.data || error.message);
     const status = error?.response?.status || 500;

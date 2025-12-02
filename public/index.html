@@ -3,95 +3,113 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>GenAI Reporting Checklist Builder</title>
+    <title>GenAI Reproducibility Tracker</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
     <main class="app-shell">
-      <h1>Reporting Standards in the GenAI Era</h1>
+      <h1>🔬 GenAI Reproducibility Tracker</h1>
       <p>
-        Paste your research plan and receive a tailored, theory-backed reporting
-        checklist for GenAI projects.
+        Track LLM configuration changes, prompts, and hyperparameters throughout your project lifecycle.
+        Generate a checklist based on your research plan, then iteratively log changes as your project evolves.
       </p>
 
-      <form id="checklist-form">
-        <label>
-          Research Plan or Project Brief
-          <textarea
-            name="researchPlan"
-            placeholder="Describe the GenAI system, data, prompts, evaluation goals, ethics guardrails, etc."
-            required
-          ></textarea>
-        </label>
+      <!-- Tab Navigation -->
+      <div class="tabs">
+        <button class="tab-button active" data-tab="setup">Setup & Config</button>
+        <button class="tab-button" data-tab="checklist">Checklist</button>
+        <button class="tab-button" data-tab="timeline">Timeline</button>
+      </div>
 
-        <label>
-          Project Stage (optional)
-          <select name="projectStage">
-            <option value="">Select a stage</option>
-            <option>Ideation</option>
-            <option>Pilot / Sandbox</option>
-            <option>Experimental Study</option>
-            <option>Evaluation / Benchmarking</option>
-            <option>Deployment</option>
-          </select>
-        </label>
+      <!-- Setup & Config Tab -->
+      <div id="setup" class="tab-content active">
+        <form id="config-form">
+          <fieldset>
+            <legend>Research Plan</legend>
+            <label>
+              Research Plan or Project Brief
+              <textarea
+                name="researchPlan"
+                placeholder="Describe the GenAI system, data, prompts, evaluation goals, ethics guardrails, etc."
+                required
+              ></textarea>
+            </label>
 
-        <button type="submit">Generate Checklist</button>
-        <div class="status" id="status-area"></div>
-      </form>
+            <label>
+              Project Stage (optional)
+              <select name="projectStage">
+                <option value="">Select a stage</option>
+                <option>Ideation</option>
+                <option>Pilot / Sandbox</option>
+                <option>Experimental Study</option>
+                <option>Evaluation / Benchmarking</option>
+                <option>Deployment</option>
+              </select>
+            </label>
+          </fieldset>
 
-      <section class="output-card" hidden id="output-card">
-        <h2>Generated Checklist</h2>
-        <pre id="output"></pre>
-      </section>
+          <fieldset>
+            <legend>Initial LLM Configuration</legend>
+            <label>
+              Model Name (e.g., grok-4, gpt-4)
+              <input type="text" name="modelName" placeholder="grok-4.1-fast" required />
+            </label>
+
+            <label>
+              Initial System Prompt
+              <textarea
+                name="systemPrompt"
+                placeholder="Enter your system prompt..."
+                rows="6"
+              ></textarea>
+            </label>
+
+            <label>
+              Temperature (0.0 - 2.0)
+              <input type="number" name="temperature" min="0" max="2" step="0.1" value="0.7" />
+            </label>
+
+            <label>
+              Max Tokens
+              <input type="number" name="maxTokens" min="1" value="900" />
+            </label>
+
+            <label>
+              Top P (0.0 - 1.0)
+              <input type="number" name="topP" min="0" max="1" step="0.05" value="1" />
+            </label>
+          </fieldset>
+
+          <button type="submit" id="generate-btn">Generate Checklist</button>
+          <div class="status" id="status-area"></div>
+        </form>
+      </div>
+
+      <!-- Checklist Tab -->
+      <div id="checklist" class="tab-content">
+        <section id="checklist-section" hidden>
+          <h2>Project Checklist & Tracking Items</h2>
+          <div id="checklist-items"></div>
+          <button id="export-btn" class="secondary-btn">Export Checklist</button>
+        </section>
+        <div id="checklist-empty" class="empty-state">
+          <p>Generate a checklist in the <strong>Setup & Config</strong> tab to get started.</p>
+        </div>
+      </div>
+
+      <!-- Timeline Tab -->
+      <div id="timeline" class="tab-content">
+        <section id="timeline-section" hidden>
+          <h2>Change Timeline</h2>
+          <div id="timeline-container"></div>
+        </section>
+        <div id="timeline-empty" class="empty-state">
+          <p>Edit checklist items to see changes logged here.</p>
+        </div>
+      </div>
     </main>
 
-    <script>
-      const form = document.getElementById("checklist-form");
-      const statusArea = document.getElementById("status-area");
-      const outputCard = document.getElementById("output-card");
-      const output = document.getElementById("output");
-      const button = form.querySelector("button");
-
-      form.addEventListener("submit", async (event) => {
-        event.preventDefault();
-        const formData = new FormData(form);
-        const researchPlan = formData.get("researchPlan")?.trim();
-        const projectStage = formData.get("projectStage")?.trim();
-
-        if (!researchPlan || researchPlan.length < 25) {
-          statusArea.textContent =
-            "Please provide at least a couple of sentences describing the project.";
-          return;
-        }
-
-        button.disabled = true;
-        statusArea.textContent = "Requesting checklist...";
-        outputCard.hidden = true;
-
-        try {
-          const response = await fetch("/api/checklist", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ researchPlan, projectStage }),
-          });
-
-          const payload = await response.json();
-          if (!response.ok) {
-            throw new Error(payload.error || "Unexpected server error.");
-          }
-
-          output.textContent = payload.checklist;
-          outputCard.hidden = false;
-          statusArea.textContent = "Checklist ready.";
-        } catch (error) {
-          console.error(error);
-          statusArea.textContent = `Error: ${error.message}`;
-        } finally {
-          button.disabled = false;
-        }
-      });
-    </script>
+    <script src="app.js"></script>
   </body>
 </html>
 

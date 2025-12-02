@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "builds": [
+    { "src": "api/**/*.js", "use": "@vercel/node" },
+    { "src": "public/**/*", "use": "@vercel/static" }
+  ],
+  "functions": {
+    "api/checklist.js": {
+      "memory": 512,
+      "maxDuration": 10
+    }
+  }
+}

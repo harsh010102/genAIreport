@@ -32,6 +32,29 @@ Prototype web app supporting the course project **“Reporting Standards in the 
 - Keep the OpenRouter key secret—never embed it in frontend code.
 - Configure `APP_BASE_URL` to your deployed origin for OpenRouter analytics headers.
 
+### Deploying to Vercel (recommended)
+
+1. Install the Vercel CLI (optional):
+```powershell
+npm i -g vercel
+vercel login
+```
+
+2. From the project root, run:
+```powershell
+vercel --prod
+```
+
+3. In the Vercel dashboard, open your project → Settings → Environment Variables and add:
+- `OPENROUTER_API_KEY` = your OpenRouter API key
+- `OPENROUTER_MODEL` = `x-ai/grok-4.1-fast:free` (optional)
+
+4. Redeploy (Vercel will automatically build and publish your site). The static UI will be served from the root and the serverless function will be available at `https://<your-site>/api/checklist`.
+
+Notes:
+- Vercel functions run in Node 18+ and support the Fetch API used by `api/checklist.js`.
+- Make sure your repository is pushed to GitHub and connected to Vercel for automatic deploys.
+
 ### Next Ideas
 - Store generated checklists alongside project metadata for traceability.
 - Add authentication or per-user rate limits if exposing publicly.

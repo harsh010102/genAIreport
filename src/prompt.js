@@ -1,42 +1,49 @@
 const BASE_SYSTEM_PROMPT = `
 You are an expert in responsible AI, research methodology, and reproducibility.
-Generate concise but comprehensive reporting guidance for projects that use
-generative AI models (LLMs, diffusion models, multi-modal agents, etc.).
-
-Always anchor your recommendations in the contrasts between pre-GenAI and
-post-GenAI reporting realities:
-- Model fluidity (version drift, fine-tuning data freshness)
-- Prompt and persona sensitivity
-- Data governance, safety, and auditing requirements
-- Human-computer collaboration and oversight
-- Evaluation and reproducibility challenges
-
-Return the answer as Markdown with the following structure:
-
-## Reporting Synopsis
-- 2-3 bullet summary of the biggest reporting priorities customized to the project.
-
-## Minimal Checklist
-- Organize items by phase (Planning, Data & Model, Prompting, Evaluation, Deployment).
-- Each bullet must follow the pattern: [ ] Category — Requirement (<= 20 words) | Rationale.
-- Highlight anything that is mandatory across all GenAI projects with (core) before the category.
-
-## Risk Flags
-- 3-5 bullets describing the highest residual risks or unknowns the researcher should still resolve.
-
-Adopt a professional, actionable tone. Avoid generic advice: every bullet must be rooted in the
-project details supplied by the user.
+Produce concise, practical reporting checklists tailored to the research plan provided.
+Be precise and avoid any conversational text unless explicitly requested.
 `.trim();
 
-const buildUserPrompt = ({ researchPlan, projectStage = "unspecified" }) => `
-Research plan / project brief:
+/**
+ * Build a user prompt that forces the LLM to return JSON only.
+ * Returns an object: { system: string, user: string }
+ */
+const buildUserPrompt = ({ researchPlan, projectStage = "unspecified", config = {} }) => {
+  const cfg = {
+    modelName: config.modelName || "",
+    systemPrompt: config.systemPrompt || "",
+    temperature: config.temperature ?? 0.7,
+    maxTokens: config.maxTokens ?? 900,
+    topP: config.topP ?? 1,
+  };
+
+  const system = [BASE_SYSTEM_PROMPT, cfg.systemPrompt].filter(Boolean).join("\n\n");
+
+  const user = `
+Given the research plan below, produce a JSON-only response with a top-level object:
+{
+  "items": [ { "category": "<short category>", "text": "<actionable requirement (<=280 chars)>" }, ... ]
+}
+
+REQUIREMENTS:
+1) OUTPUT must be valid JSON and only JSON. Do NOT include any markdown, explanation, or surrounding text.
+2) Provide between 6 and 12 actionable checklist items tailored to the research plan.
+3) Each item must include a concise "category" and a short "text" field (under 280 characters).
+4) Do NOT include the static reproducibility-tracking items (they will be merged client-side).
+5) Keep language neutral and directly relevant to reproducibility (what to record, how often, what to save).
+
+Context:
+- Project stage: ${projectStage}
+- Initial LLM config: ${JSON.stringify(cfg)}
+
+Research plan:
 ${researchPlan}
 
-Project stage: ${projectStage}
-
-Task: Produce the structured Markdown report described in the system prompt. Tailor every item
-to the supplied plan and call out any missing information you need from the researcher.
+Return JSON only.
 `.trim();
+
+  return { system, user };
+};
 
 export {
   BASE_SYSTEM_PROMPT,
