@@ -1,20 +1,17 @@
 /**
- * GenAI Reproducibility Tracker
- * Manages checklist generation, editing, change tracking, and timeline visualization
+ * GenAI Reproducibility Tracker - Multi-Project Support
+ * Manages multiple projects, each with its own research plan, checklist, and timeline.
  */
 
-// State
-let projectState = {
-  config: {
-    modelName: "",
-    systemPrompt: "",
-    temperature: 0.7,
-    maxTokens: 900,
-    topP: 1,
-  },
-  checklist: [],
-  timeline: [],
-};
+// ============================================================================
+// STATE & CONSTANTS
+// ============================================================================
+
+let currentProjectId = null;
+let projects = {}; // { projectId: { id, name, researchPlan, projectStage, config, checklist, timeline } }
+
+const STORAGE_KEY = "genai_projects";
+const CURRENT_PROJECT_KEY = "genai_current_project";
 
 const TAB_KEYS = {
   SETUP: "setup",
@@ -22,18 +19,23 @@ const TAB_KEYS = {
   TIMELINE: "timeline",
 };
 
-// Static tracking items to merge with Grok output
 const STATIC_TRACKING_ITEMS = [
-  "📝 Log prompt changes (if modified from initial)",
-  "🌡️ Track temperature updates (if adjusted)",
-  "🔄 Record model version changes (if switched)",
-  "📊 Document performance metrics (if available)",
-  "📌 Note data modifications or augmentations",
-  "⚙️ Track hyperparameter adjustments",
-  "🧪 Document test/validation results",
+  "Log prompt changes (if modified from initial)",
+  "Track temperature updates (if adjusted)",
+  "Record model version changes (if switched)",
+  "Document performance metrics (if available)",
+  "Note data modifications or augmentations",
+  "Track hyperparameter adjustments",
+  "Document test/validation results",
 ];
 
-// DOM Elements
+// ============================================================================
+// DOM ELEMENTS
+// ============================================================================
+
+const projectSelector = document.getElementById("project-selector");
+const newProjectBtn = document.getElementById("new-project-btn");
+const deleteProjectBtn = document.getElementById("delete-project-btn");
 const configForm = document.getElementById("config-form");
 const statusArea = document.getElementById("status-area");
 const tabButtons = document.querySelectorAll(".tab-button");
@@ -48,46 +50,192 @@ const exportBtn = document.getElementById("export-btn");
 const generateBtn = document.getElementById("generate-btn");
 
 // ============================================================================
-// TAB NAVIGATION
+// INITIALIZATION
 // ============================================================================
 
-tabButtons.forEach((button) => {
-  button.addEventListener("click", (e) => {
-    const tabKey = e.target.dataset.tab;
-    switchTab(tabKey);
-  });
+document.addEventListener("DOMContentLoaded", () => {
+  loadProjectsFromStorage();
+  setupEventListeners();
+  renderProjectsList();
+  const savedProjectId = localStorage.getItem(CURRENT_PROJECT_KEY);
+  if (savedProjectId && projects[savedProjectId]) {
+    switchProject(savedProjectId);
+  }
 });
 
-function switchTab(tabKey) {
-  // Update button states
-  tabButtons.forEach((btn) => {
-    btn.classList.toggle("active", btn.dataset.tab === tabKey);
+function setupEventListeners() {
+  projectSelector.addEventListener("change", (e) => {
+    if (e.target.value) switchProject(e.target.value);
   });
 
-  // Update content visibility
-  tabContents.forEach((content) => {
-    content.classList.toggle("active", content.id === tabKey);
+  newProjectBtn.addEventListener("click", createNewProject);
+  deleteProjectBtn.addEventListener("click", deleteCurrentProject);
+
+  configForm.addEventListener("submit", generateChecklistForCurrentProject);
+  exportBtn.addEventListener("click", exportCurrentProject);
+
+  tabButtons.forEach((button) => {
+    button.addEventListener("click", (e) => {
+      const tabKey = e.target.dataset.tab;
+      switchTab(tabKey);
+    });
   });
+
+  window.addEventListener("message", handleExtensionMessage);
 }
 
 // ============================================================================
-// GENERATE CHECKLIST
+// PROJECT MANAGEMENT
 // ============================================================================
 
-configForm.addEventListener("submit", async (e) => {
+function loadProjectsFromStorage() {
+  const stored = localStorage.getItem(STORAGE_KEY);
+  if (stored) {
+    try {
+      projects = JSON.parse(stored);
+    } catch (e) {
+      console.error("Failed to load projects:", e);
+      projects = {};
+    }
+  }
+}
+
+function saveProjectsToStorage() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
+}
+
+function createNewProject() {
+  const name = prompt("Enter a name for the new project:").trim();
+  if (!name) return;
+
+  const projectId = `project-${Date.now()}`;
+  projects[projectId] = {
+    id: projectId,
+    name,
+    researchPlan: "",
+    projectStage: "unspecified",
+    openrouterApiKey: "",
+    customModel: "",
+    config: {
+      modelName: "amazon/nova-2-lite-v1:free",
+      systemPrompt: "",
+      temperature: 0.7,
+      maxTokens: 900,
+      topP: 1,
+    },
+    checklist: [],
+    timeline: [],
+  };
+
+  saveProjectsToStorage();
+  renderProjectsList();
+  switchProject(projectId);
+  // Ensure the setup form is visible when a project is created
+  configForm.hidden = false;
+  setStatus(`✓ Project "${name}" created`, "success");
+}
+
+function switchProject(projectId) {
+  if (!projects[projectId]) return;
+
+  currentProjectId = projectId;
+  localStorage.setItem(CURRENT_PROJECT_KEY, projectId);
+
+  // Populate form with current project data
+  const project = projects[projectId];
+  configForm.researchPlan.value = project.researchPlan || "";
+  configForm.projectStage.value = project.projectStage || "";
+  configForm.openrouterApiKey.value = project.openrouterApiKey || "";
+  configForm.customModel.value = project.customModel || "";
+  configForm.modelName.value = project.config.modelName || "";
+  configForm.systemPrompt.value = project.config.systemPrompt || "";
+  configForm.temperature.value = project.config.temperature || 0.7;
+  configForm.maxTokens.value = project.config.maxTokens || 900;
+  configForm.topP.value = project.config.topP || 1;
+
+  projectSelector.value = projectId;
+  deleteProjectBtn.hidden = false;
+  renderProjectsList();
+  renderChecklist();
+  renderTimeline();
+  switchTab(TAB_KEYS.SETUP);
+  setStatus(`Switched to project: ${project.name}`, "info");
+
+  // Emit state for extension
+  // Make sure the config form is visible for the active project
+  configForm.hidden = false;
+  emitProjectState();
+}
+
+function deleteCurrentProject() {
+  if (!currentProjectId || !confirm("Are you sure you want to delete this project?")) return;
+
+  const projectName = projects[currentProjectId].name;
+  delete projects[currentProjectId];
+  currentProjectId = null;
+  localStorage.removeItem(CURRENT_PROJECT_KEY);
+
+  saveProjectsToStorage();
+  renderProjectsList();
+  deleteProjectBtn.hidden = true;
+  clearForm();
+  // Hide the setup form when no project is active
+  configForm.hidden = true;
+  checklistSection.hidden = true;
+  timelineSection.hidden = true;
+  setStatus(`✓ Project "${projectName}" deleted`, "success");
+}
+
+function renderProjectsList() {
+  const projectIds = Object.keys(projects);
+  const options = projectIds.map(
+    (id) => `<option value="${id}">${escapeHtml(projects[id].name)}</option>`
+  );
+
+  projectSelector.innerHTML = '<option value="">Select a project...</option>' + options.join("");
+  if (currentProjectId) projectSelector.value = currentProjectId;
+}
+
+function clearForm() {
+  configForm.reset();
+  configForm.temperature.value = 0.7;
+  configForm.maxTokens.value = 900;
+  configForm.topP.value = 1;
+  checklistItemsContainer.innerHTML = "";
+  timelineContainer.innerHTML = "";
+  statusArea.textContent = "";
+}
+
+// ============================================================================
+// CHECKLIST GENERATION
+// ============================================================================
+
+async function generateChecklistForCurrentProject(e) {
   e.preventDefault();
+  if (!currentProjectId) {
+    setStatus("Please select or create a project first.", "error");
+    return;
+  }
+
   const formData = new FormData(configForm);
   const researchPlan = formData.get("researchPlan")?.trim();
   const projectStage = formData.get("projectStage")?.trim() || "unspecified";
+  const openrouterApiKey = formData.get("openrouterApiKey")?.trim() || "";
+  const customModel = formData.get("customModel")?.trim() || "";
 
   if (!researchPlan || researchPlan.length < 25) {
     setStatus("Please provide at least a few sentences describing your project.", "error");
     return;
   }
 
-  // Save config
-  projectState.config = {
-    modelName: formData.get("modelName") || "grok-4",
+  // Save form data to current project
+  const project = projects[currentProjectId];
+  project.researchPlan = researchPlan;
+  project.projectStage = projectStage;
+  project.openrouterApiKey = openrouterApiKey;
+  project.customModel = customModel;
+  project.config = {
+    modelName: formData.get("modelName") || "amazon/nova-2-lite-v1:free",
     systemPrompt: formData.get("systemPrompt") || "",
     temperature: parseFloat(formData.get("temperature")) || 0.7,
     maxTokens: parseInt(formData.get("maxTokens")) || 900,
@@ -101,7 +249,13 @@ configForm.addEventListener("submit", async (e) => {
     const response = await fetch("/api/checklist", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ researchPlan, projectStage, config: projectState.config }),
+      body: JSON.stringify({
+        researchPlan,
+        projectStage,
+        config: project.config,
+        openrouterApiKey,
+        customModel,
+      }),
     });
 
     const payload = await response.json();
@@ -109,7 +263,7 @@ configForm.addEventListener("submit", async (e) => {
       throw new Error(payload.error || "Failed to generate checklist.");
     }
 
-    // Parse Grok output and merge with static items
+    // Parse and merge items
     const grokItems = parseChecklistItems(payload.checklist);
     const staticItems = STATIC_TRACKING_ITEMS.map((text) => ({
       id: `static-${Math.random().toString(36).substr(2, 9)}`,
@@ -120,8 +274,11 @@ configForm.addEventListener("submit", async (e) => {
       changes: [],
     }));
 
-    projectState.checklist = [...grokItems, ...staticItems];
-    projectState.timeline = [];
+    project.checklist = [...grokItems, ...staticItems];
+    project.timeline = [];
+
+    saveProjectsToStorage();
+    emitProjectState();
 
     setStatus("✓ Checklist generated successfully!", "success");
     renderChecklist();
@@ -132,19 +289,11 @@ configForm.addEventListener("submit", async (e) => {
   } finally {
     generateBtn.disabled = false;
   }
-});
+}
 
 function parseChecklistItems(checklistInput) {
-  /**
-   * Accepts several input shapes:
-   * - Array of { category, text }
-   * - Object with `items` array
-   * - JSON string containing the above
-   * - Fallback: markdown checklist string
-   */
   if (!checklistInput) return createDefaultChecklist();
 
-  // If already an array of items
   if (Array.isArray(checklistInput)) {
     return checklistInput.map((it) => ({
       id: `item-${Math.random().toString(36).substr(2, 9)}`,
@@ -156,7 +305,6 @@ function parseChecklistItems(checklistInput) {
     }));
   }
 
-  // If an object with items
   if (typeof checklistInput === "object" && checklistInput.items && Array.isArray(checklistInput.items)) {
     return checklistInput.items.map((it) => ({
       id: `item-${Math.random().toString(36).substr(2, 9)}`,
@@ -168,7 +316,6 @@ function parseChecklistItems(checklistInput) {
     }));
   }
 
-  // If string, try to parse JSON first
   if (typeof checklistInput === "string") {
     const s = checklistInput.trim();
     try {
@@ -176,7 +323,6 @@ function parseChecklistItems(checklistInput) {
       if (Array.isArray(parsed)) return parseChecklistItems(parsed);
       if (parsed && Array.isArray(parsed.items)) return parseChecklistItems(parsed);
     } catch (e) {
-      // attempt to extract JSON substring
       const jsonMatch = s.match(/\{[\s\S]*\}|\[[\s\S]*\]/m);
       if (jsonMatch) {
         try {
@@ -189,7 +335,6 @@ function parseChecklistItems(checklistInput) {
         }
       }
 
-      // Markdown fallback: extract list-like lines
       const items = [];
       const lines = s.split(/\r?\n/);
       lines.forEach((line) => {
@@ -218,7 +363,6 @@ function parseChecklistItems(checklistInput) {
 }
 
 function createDefaultChecklist() {
-  // Fallback if parsing fails
   return [
     {
       id: "default-1",
@@ -240,11 +384,15 @@ function createDefaultChecklist() {
 }
 
 // ============================================================================
-// RENDER CHECKLIST
+// RENDERING
 // ============================================================================
 
 function renderChecklist() {
-  if (projectState.checklist.length === 0) {
+  if (!currentProjectId) return;
+  const project = projects[currentProjectId];
+  const items = project.checklist || [];
+
+  if (items.length === 0) {
     checklistSection.hidden = true;
     checklistEmpty.hidden = false;
     return;
@@ -253,12 +401,9 @@ function renderChecklist() {
   checklistSection.hidden = false;
   checklistEmpty.hidden = true;
 
-  checklistItemsContainer.innerHTML = projectState.checklist
-    .map((item) => renderChecklistItem(item))
-    .join("");
+  checklistItemsContainer.innerHTML = items.map((item) => renderChecklistItem(item)).join("");
 
-  // Attach event listeners
-  projectState.checklist.forEach((item) => {
+  items.forEach((item) => {
     const checkbox = document.querySelector(`input[data-item-id="${item.id}"]`);
     const noteInput = document.querySelector(`textarea[data-item-id="${item.id}"]`);
     const logChangeBtn = document.querySelector(`button[data-action="log"][data-item-id="${item.id}"]`);
@@ -269,6 +414,7 @@ function renderChecklist() {
       checkbox.addEventListener("change", (e) => {
         item.checked = e.target.checked;
         logChange(item.id, `Item ${item.checked ? "completed" : "uncompleted"}`);
+        saveProjectsToStorage();
         renderChecklist();
         renderTimeline();
       });
@@ -281,6 +427,7 @@ function renderChecklist() {
         item.notes = e.target.value;
         if (oldNotes !== item.notes) {
           logChange(item.id, `Notes updated: "${item.notes}"`);
+          saveProjectsToStorage();
           renderTimeline();
         }
       });
@@ -291,6 +438,7 @@ function renderChecklist() {
         const message = prompt(`Log a change for: ${item.text}\n\nEnter change details:`);
         if (message) {
           logChange(item.id, message);
+          saveProjectsToStorage();
           renderTimeline();
           renderChecklist();
         }
@@ -299,10 +447,9 @@ function renderChecklist() {
 
     if (removeBtn) {
       removeBtn.addEventListener("click", () => {
-        projectState.checklist = projectState.checklist.filter(
-          (i) => i.id !== item.id
-        );
+        project.checklist = project.checklist.filter((i) => i.id !== item.id);
         logChange(item.id, "Item removed from checklist");
+        saveProjectsToStorage();
         renderChecklist();
         renderTimeline();
       });
@@ -326,10 +473,10 @@ function renderChecklistItem(item) {
         ></textarea>
         <div class="item-buttons">
           <button class="item-btn log-change" data-action="log" data-item-id="${item.id}">
-            📝 Log Change
+            Log Change
           </button>
           <button class="item-btn remove" data-action="remove" data-item-id="${item.id}">
-            🗑️ Remove
+            Remove
           </button>
         </div>
         ${
@@ -348,27 +495,12 @@ function renderChecklistItem(item) {
   `;
 }
 
-// ============================================================================
-// CHANGE TRACKING & TIMELINE
-// ============================================================================
-
-function logChange(itemId, message) {
-  const item = projectState.checklist.find((i) => i.id === itemId);
-  if (!item) return;
-
-  const timestamp = new Date().toLocaleString();
-  item.changes.push({ message, timestamp });
-
-  projectState.timeline.push({
-    timestamp,
-    itemId,
-    itemText: item.text,
-    message,
-  });
-}
-
 function renderTimeline() {
-  if (projectState.timeline.length === 0) {
+  if (!currentProjectId) return;
+  const project = projects[currentProjectId];
+  const events = project.timeline || [];
+
+  if (events.length === 0) {
     timelineSection.hidden = true;
     timelineEmpty.hidden = false;
     return;
@@ -377,10 +509,7 @@ function renderTimeline() {
   timelineSection.hidden = false;
   timelineEmpty.hidden = true;
 
-  const sortedEvents = [...projectState.timeline].sort(
-    (a, b) => new Date(b.timestamp) - new Date(a.timestamp)
-  );
-
+  const sortedEvents = [...events].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
   timelineContainer.innerHTML = `
     <div class="timeline">
       ${sortedEvents.map((event) => renderTimelineEvent(event)).join("")}
@@ -398,15 +527,55 @@ function renderTimelineEvent(event) {
   `;
 }
 
+function switchTab(tabKey) {
+  tabButtons.forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.tab === tabKey);
+  });
+
+  tabContents.forEach((content) => {
+    content.classList.toggle("active", content.id === tabKey);
+  });
+}
+
 // ============================================================================
-// EXPORT & UTILITIES
+// CHANGE TRACKING
 // ============================================================================
 
-exportBtn.addEventListener("click", () => {
+function logChange(itemId, message) {
+  if (!currentProjectId) return;
+  const project = projects[currentProjectId];
+  const item = project.checklist.find((i) => i.id === itemId);
+  if (!item) return;
+
+  const timestamp = new Date().toLocaleString();
+  item.changes.push({ message, timestamp });
+
+  project.timeline.push({
+    timestamp,
+    itemId,
+    itemText: item.text,
+    message,
+  });
+
+  emitProjectState();
+}
+
+// ============================================================================
+// EXPORT & EXTENSION MESSAGING
+// ============================================================================
+
+function exportCurrentProject() {
+  if (!currentProjectId) {
+    setStatus("Please select a project to export.", "error");
+    return;
+  }
+
+  const project = projects[currentProjectId];
   const data = {
-    config: projectState.config,
-    checklist: projectState.checklist,
-    timeline: projectState.timeline,
+    name: project.name,
+    config: project.config,
+    checklist: project.checklist,
+    timeline: project.timeline,
     exportedAt: new Date().toISOString(),
   };
 
@@ -415,12 +584,63 @@ exportBtn.addEventListener("click", () => {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `genai-project-${Date.now()}.json`;
+  a.download = `${project.name}-${Date.now()}.json`;
   a.click();
   URL.revokeObjectURL(url);
 
-  setStatus("✓ Checklist exported as JSON", "success");
-});
+  setStatus("✓ Project exported as JSON", "success");
+}
+
+function emitProjectState() {
+  if (!currentProjectId) return;
+  const project = projects[currentProjectId];
+
+  try {
+    window.postMessage(
+      {
+        source: "genai-tracker",
+        type: "state",
+        data: {
+          projectId: currentProjectId,
+          projectName: project.name,
+          config: project.config,
+          checklist: project.checklist,
+          timeline: project.timeline,
+        },
+      },
+      "*"
+    );
+  } catch (err) {
+    console.warn("emitProjectState failed:", err?.message || err);
+  }
+}
+
+function handleExtensionMessage(event) {
+  if (!event || !event.data) return;
+  const m = event.data;
+
+  if (m && m.source === "genai-extension" && m.type === "update" && m.data) {
+    try {
+      const { projectId, checklist, timeline } = m.data;
+      if (projectId && projects[projectId]) {
+        projects[projectId].checklist = checklist;
+        projects[projectId].timeline = timeline;
+        saveProjectsToStorage();
+
+        if (currentProjectId === projectId) {
+          renderChecklist();
+          renderTimeline();
+        }
+      }
+    } catch (err) {
+      console.warn("Failed to apply update from genai-extension:", err?.message || err);
+    }
+  }
+}
+
+// ============================================================================
+// UTILITIES
+// ============================================================================
 
 function setStatus(message, type = "info") {
   statusArea.textContent = message;

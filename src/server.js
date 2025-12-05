@@ -34,7 +34,7 @@ app.get("/api/health", (_req, res) => {
 });
 
 app.post("/api/checklist", async (req, res) => {
-  const { researchPlan, projectStage, config } = req.body || {};
+  const { researchPlan, projectStage, config, openrouterApiKey, customModel } = req.body || {};
 
   if (!researchPlan || researchPlan.trim().length < 25) {
     return res.status(400).json({
@@ -42,20 +42,30 @@ app.post("/api/checklist", async (req, res) => {
     });
   }
 
-  if (!OPENROUTER_API_KEY) {
+  // Use custom API key if provided, otherwise fall back to env
+  const apiKey = openrouterApiKey?.trim() || OPENROUTER_API_KEY;
+  if (!apiKey) {
     return res
       .status(500)
-      .json({ error: "Missing OPENROUTER_API_KEY. Set it in the environment." });
+      .json({ error: "Missing OPENROUTER_API_KEY. Set it in the environment or in form." });
   }
+
+  // Use custom model if provided, otherwise fall back to env
+  const modelToUse = customModel?.trim() || OPENROUTER_MODEL;
 
   try {
     let responseText = "";
 
+    // Initialize OpenRouter client with provided or default API key
+    const client = new OpenRouter({
+      apiKey: apiKey,
+    });
+
     // Build prompts with JSON-only requirement
     const prompts = buildUserPrompt({ researchPlan, projectStage, config });
 
-    const stream = await openrouter.chat.send({
-      model: OPENROUTER_MODEL,
+    const stream = await client.chat.send({
+      model: modelToUse,
       messages: [
         { role: "system", content: prompts.system },
         { role: "user", content: prompts.user },
@@ -109,7 +119,7 @@ app.post("/api/checklist", async (req, res) => {
       checklist: checklistPayload,
       generatedAt: new Date().toISOString(),
       projectStage,
-      model: OPENROUTER_MODEL,
+      model: modelToUse,
       raw: trimmed,
     });
   } catch (error) {

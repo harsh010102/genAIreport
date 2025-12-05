@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "GenAI Report Tracker",
+  "description": "Bridge GenAI report state between the web app and a small extension popup for quick edits.",
+  "version": "0.1.0",
+  "permissions": ["storage", "activeTab"],
+  "host_permissions": ["http://localhost:3000/*", "https://*/*"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "GenAI Tracker"
+  },
+  "content_scripts": [
+    {
+      "matches": ["http://localhost:3000/*", "https://*/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

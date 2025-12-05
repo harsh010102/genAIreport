@@ -8,11 +8,26 @@
   </head>
   <body>
     <main class="app-shell">
-      <h1>🔬 GenAI Reproducibility Tracker</h1>
-      <p>
-        Track LLM configuration changes, prompts, and hyperparameters throughout your project lifecycle.
-        Generate a checklist based on your research plan, then iteratively log changes as your project evolves.
-      </p>
+      <div class="app-header">
+        <h1>GenAI Reproducibility Tracker</h1>
+        <p>
+          Track LLM configuration changes, prompts, and hyperparameters throughout your project lifecycle.
+          Generate a checklist based on your research plan, then iteratively log changes as your project evolves.
+        </p>
+      </div>
+
+      <!-- Project Management Section -->
+      <div class="project-manager">
+        <div class="project-controls">
+          <label for="project-selector">Active Project:</label>
+          <select id="project-selector">
+            <option value="">Create or select a project...</option>
+          </select>
+          <button id="new-project-btn" class="primary-btn">+ New Project</button>
+          <button id="delete-project-btn" class="danger-btn" hidden>Delete Project</button>
+        </div>
+        <div id="projects-list" class="projects-list" hidden></div>
+      </div>
 
       <!-- Tab Navigation -->
       <div class="tabs">
@@ -23,7 +38,23 @@
 
       <!-- Setup & Config Tab -->
       <div id="setup" class="tab-content active">
-        <form id="config-form">
+        <form id="config-form" hidden>
+          <fieldset>
+            <legend>OpenRouter Credentials (Optional)</legend>
+            <div class="field-help">
+              Leave blank to use server defaults. Add your own API key and model to override.
+            </div>
+            <label>
+              OpenRouter API Key
+              <input type="password" name="openrouterApiKey" placeholder="sk-..." />
+            </label>
+
+            <label>
+              Model ID (e.g., openai/gpt-4, x-ai/grok-2)
+              <input type="text" name="customModel" placeholder="amazon/nova-2-lite-v1:free" />
+            </label>
+          </fieldset>
+
           <fieldset>
             <legend>Research Plan</legend>
             <label>

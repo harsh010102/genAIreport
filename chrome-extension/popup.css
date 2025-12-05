@@ -1,0 +1,211 @@
+/* popup.css - enhanced styling for GenAI Tracker extension */
+* {
+  box-sizing: border-box;
+}
+
+:root {
+  /* ColorHunt palette: #434e78, #607b8f, #f7e396, #e97f4a */
+  --bg-1: #434e78;
+  --bg-2: #607b8f;
+  --accent-1: #f7e396; /* pale yellow */
+  --accent-2: #e97f4a; /* warm orange */
+  --dark-bg: #0e1014;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  margin: 0;
+  padding: 10px;
+  width: 420px;
+  color: #e0e0e0;
+  background: linear-gradient(to bottom, var(--bg-1), var(--bg-2));
+}
+
+header {
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--accent-1);
+}
+
+header h1 {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0;
+  color: var(--accent-1);
+}
+
+header .project-info {
+  margin-top: 4px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+section {
+  margin-bottom: 14px;
+}
+
+section h2 {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 8px 0;
+  color: var(--accent-1);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.p-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  background: rgba(8, 10, 18, 0.6);
+  border-radius: 5px;
+  border-left: 3px solid var(--accent-2);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  transition: background 0.2s;
+}
+
+.p-item:hover {
+  background: rgba(233, 127, 74, 0.08);
+}
+
+.p-item input[type="checkbox"] {
+  margin-top: 3px;
+  cursor: pointer;
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent-1);
+}
+
+.p-item label {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.p-item span {
+  font-size: 13px;
+  color: #e0e0e0;
+  word-break: break-word;
+}
+
+.p-item button {
+  background: var(--accent-2);
+  color: #0b0c10;
+  border: none;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+  white-space: nowrap;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.p-item button:hover {
+  background: #d97036;
+}
+
+.p-item button:active {
+  background: #c4622f;
+}
+
+.p-event {
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  background: rgba(8, 10, 18, 0.6);
+  border-radius: 5px;
+  border-left: 3px solid var(--accent-1);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.p-time {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.6);
+  font-weight: 500;
+  margin-bottom: 2px;
+}
+
+.p-title {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--accent-1);
+  margin-bottom: 2px;
+}
+
+.p-msg {
+  font-size: 12px;
+  color: #c0c0c0;
+  margin-top: 2px;
+}
+
+.empty {
+  color: #888888;
+  font-size: 13px;
+  padding: 10px;
+  text-align: center;
+  background: rgba(8, 10, 18, 0.4);
+  border-radius: 5px;
+  border: 1px dashed rgba(255, 255, 255, 0.1);
+}
+
+footer {
+  margin-top: 12px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  text-align: center;
+}
+
+footer button {
+  background: var(--accent-1);
+  color: #0b0c10;
+  border: none;
+  padding: 6px 16px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+footer button:hover {
+  background: #f0d878;
+}
+
+footer button:active {
+  background: #e8c956;
+}
+
+#checklist-container,
+#timeline-container {
+  max-height: 350px;
+  overflow-y: auto;
+  border-radius: 4px;
+}
+
+#checklist-container::-webkit-scrollbar,
+#timeline-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+#checklist-container::-webkit-scrollbar-track,
+#timeline-container::-webkit-scrollbar-track {
+  background: rgba(96, 123, 143, 0.1);
+  border-radius: 3px;
+}
+
+#checklist-container::-webkit-scrollbar-thumb,
+#timeline-container::-webkit-scrollbar-thumb {
+  background: var(--accent-2);
+  border-radius: 3px;
+}
+
+#checklist-container::-webkit-scrollbar-thumb:hover,
+#timeline-container::-webkit-scrollbar-thumb:hover {
+  background: #d97036;
+}
