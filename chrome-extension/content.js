@@ -12,18 +12,35 @@
     // Only accept messages from the page context with expected source/type
     if (msg && msg.source === "genai-tracker" && msg.type === "state" && msg.data) {
       try {
-        // Extract projectId and store the full state
-        const { projectId, projectName, config, checklist, timeline } = msg.data;
-        const stateToStore = {
-          currentProjectId: projectId,
-          currentProjectName: projectName,
-          config,
-          checklist,
-          timeline,
-        };
-        chrome.storage.local.set({ genai_state: stateToStore }, () => {
-          // no-op
-        });
+        // Accept full state payload. If no active project, store projects list and null currentProjectId.
+        const { currentProjectId, projects, projectId, projectName, config, checklist, timeline } = msg.data;
+
+        if (!currentProjectId) {
+          const stateToStore = {
+            currentProjectId: null,
+            projects: projects || {},
+            currentProjectName: null,
+            config: null,
+            checklist: [],
+            timeline: [],
+          };
+          chrome.storage.local.set({ genai_state: stateToStore }, () => {
+            // no-op
+          });
+        } else {
+          // Normal: active project provided
+          const stateToStore = {
+            currentProjectId: projectId || currentProjectId,
+            currentProjectName: projectName || (projects && projects[currentProjectId] && projects[currentProjectId].name) || null,
+            config: config || (projects && projects[currentProjectId] && projects[currentProjectId].config) || null,
+            checklist: checklist || (projects && projects[currentProjectId] && projects[currentProjectId].checklist) || [],
+            timeline: timeline || (projects && projects[currentProjectId] && projects[currentProjectId].timeline) || [],
+            projects: projects || {},
+          };
+          chrome.storage.local.set({ genai_state: stateToStore }, () => {
+            // no-op
+          });
+        }
       } catch (err) {
         console.warn("content.js: failed to set storage", err?.message || err);
       }

@@ -184,6 +184,8 @@ function deleteCurrentProject() {
   checklistSection.hidden = true;
   timelineSection.hidden = true;
   setStatus(`✓ Project "${projectName}" deleted`, "success");
+  // Emit updated state so the extension clears any stored project data
+  emitProjectState();
 }
 
 function renderProjectsList() {
@@ -592,21 +594,26 @@ function exportCurrentProject() {
 }
 
 function emitProjectState() {
-  if (!currentProjectId) return;
-  const project = projects[currentProjectId];
-
   try {
+    const payload = {
+      currentProjectId: currentProjectId,
+      projects: projects,
+    };
+
+    if (currentProjectId && projects[currentProjectId]) {
+      const project = projects[currentProjectId];
+      payload.projectId = currentProjectId;
+      payload.projectName = project.name;
+      payload.config = project.config;
+      payload.checklist = project.checklist;
+      payload.timeline = project.timeline;
+    }
+
     window.postMessage(
       {
         source: "genai-tracker",
         type: "state",
-        data: {
-          projectId: currentProjectId,
-          projectName: project.name,
-          config: project.config,
-          checklist: project.checklist,
-          timeline: project.timeline,
-        },
+        data: payload,
       },
       "*"
     );

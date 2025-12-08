@@ -5,9 +5,13 @@
   "version": "0.1.0",
   "permissions": ["storage", "activeTab"],
   "host_permissions": ["http://localhost:3000/*", "https://*/*"],
+  "icons": {
+    "128": "microscope.png"
+  },
   "action": {
     "default_popup": "popup.html",
-    "default_title": "GenAI Tracker"
+    "default_title": "GenAI Tracker",
+    "default_icon": "microscope.png"
   },
   "content_scripts": [
     {

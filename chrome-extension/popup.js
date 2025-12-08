@@ -30,7 +30,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const header = document.querySelector("header");
     const projectInfo = header.querySelector(".project-info") || document.createElement("div");
     projectInfo.className = "project-info";
-    projectInfo.innerHTML = `<small>Project: ${escapeHtml(state.currentProjectName)}</small>`;
+    const displayName = state.currentProjectName || "No project selected";
+    projectInfo.innerHTML = `<small>Project: ${escapeHtml(displayName)}</small>`;
     if (!header.querySelector(".project-info")) {
       header.appendChild(projectInfo);
     }
