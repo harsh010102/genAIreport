@@ -81,6 +81,17 @@ function setupEventListeners() {
     });
   });
 
+  // Custom checklist add button
+  const addItemBtn = document.getElementById("add-item-btn");
+  const newItemText = document.getElementById("new-item-text");
+  const newItemCategory = document.getElementById("new-item-category");
+  if (addItemBtn) {
+    addItemBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      addCustomItem();
+    });
+  }
+
   window.addEventListener("message", handleExtensionMessage);
 }
 
@@ -364,6 +375,55 @@ function parseChecklistItems(checklistInput) {
   return createDefaultChecklist();
 }
 
+// Add a custom checklist item from the UI
+function addCustomItem() {
+  if (!currentProjectId) {
+    setStatus("Please select or create a project first.", "error");
+    return;
+  }
+
+  const textEl = document.getElementById("new-item-text");
+  const catEl = document.getElementById("new-item-category");
+  if (!textEl) return;
+
+  const text = (textEl.value || "").trim();
+  const category = (catEl && catEl.value) ? catEl.value : "General";
+
+  if (!text) {
+    setStatus("Please enter text for the checklist item.", "error");
+    return;
+  }
+
+  const project = projects[currentProjectId];
+  const newItem = {
+    id: `item-${Math.random().toString(36).substr(2, 9)}`,
+    text,
+    category,
+    checked: false,
+    notes: "",
+    changes: [],
+  };
+
+  project.checklist = project.checklist || [];
+  project.checklist.unshift(newItem);
+
+  // Log change and persist
+  const ts = new Date().toLocaleString();
+  newItem.changes.push({ message: "Item added", timestamp: ts });
+  project.timeline = project.timeline || [];
+  project.timeline.push({ timestamp: ts, itemId: newItem.id, itemText: newItem.text, message: "Item added" });
+
+  saveProjectsToStorage();
+  emitProjectState();
+  renderChecklist();
+  renderTimeline();
+  setStatus("✓ Item added", "success");
+
+  // clear input
+  textEl.value = "";
+  if (catEl) catEl.value = "General";
+}
+
 function createDefaultChecklist() {
   return [
     {
@@ -417,6 +477,7 @@ function renderChecklist() {
         item.checked = e.target.checked;
         logChange(item.id, `Item ${item.checked ? "completed" : "uncompleted"}`);
         saveProjectsToStorage();
+        emitProjectState();
         renderChecklist();
         renderTimeline();
       });
@@ -430,6 +491,7 @@ function renderChecklist() {
         if (oldNotes !== item.notes) {
           logChange(item.id, `Notes updated: "${item.notes}"`);
           saveProjectsToStorage();
+          emitProjectState();
           renderTimeline();
         }
       });
@@ -452,6 +514,7 @@ function renderChecklist() {
         project.checklist = project.checklist.filter((i) => i.id !== item.id);
         logChange(item.id, "Item removed from checklist");
         saveProjectsToStorage();
+        emitProjectState();
         renderChecklist();
         renderTimeline();
       });

@@ -120,6 +120,16 @@
       <div id="checklist" class="tab-content">
         <section id="checklist-section" hidden>
           <h2>Project Checklist & Tracking Items</h2>
+          <div style="display:flex; gap:0.5rem; align-items:center; margin-bottom:0.75rem;">
+            <input id="new-item-text" type="text" placeholder="Add custom checklist item..." style="flex:1; padding:0.6rem; border-radius:8px; border:1px solid rgba(255,255,255,0.08); background:rgba(10,12,16,0.6); color:inherit;" />
+            <select id="new-item-category" style="padding:0.55rem; border-radius:8px; border:1px solid rgba(255,255,255,0.06); background:rgba(10,12,16,0.6); color:inherit;">
+              <option value="General">General</option>
+              <option value="Planning">Planning</option>
+              <option value="Evaluation">Evaluation</option>
+              <option value="Reproducibility Tracking">Reproducibility Tracking</option>
+            </select>
+            <button id="add-item-btn" class="primary-btn">Add</button>
+          </div>
           <div id="checklist-items"></div>
           <button id="export-btn" class="secondary-btn">Export Checklist</button>
         </section>
