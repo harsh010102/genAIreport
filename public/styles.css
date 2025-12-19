@@ -384,10 +384,20 @@ button[type="submit"]:not(:disabled):hover,
 .item-btn.log-change {
   background: rgba(247,227,150,0.16);
   color: #0b0c10;
+  border: 1px solid rgba(247,227,150,0.12);
 }
 
 .item-btn.log-change:hover {
   background: rgba(247,227,150,0.28);
+}
+
+/* Highlighted state when there are unsaved note changes */
+.item-btn.log-change.active {
+  background: linear-gradient(90deg, var(--accent-1), #f0c86a);
+  color: #071018;
+  box-shadow: 0 6px 16px rgba(233,127,74,0.12);
+  transform: translateY(-1px);
+  border-color: rgba(233,127,74,0.22);
 }
 
 .item-btn.remove {

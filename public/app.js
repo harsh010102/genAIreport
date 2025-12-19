@@ -92,6 +92,12 @@ function setupEventListeners() {
     });
   }
 
+  // Timeline export buttons
+  const exportTimelineJsonBtn = document.getElementById("export-timeline-json");
+  const exportTimelineMdBtn = document.getElementById("export-timeline-md");
+  if (exportTimelineJsonBtn) exportTimelineJsonBtn.addEventListener("click", exportTimelineJSON);
+  if (exportTimelineMdBtn) exportTimelineMdBtn.addEventListener("click", exportTimelineMarkdown);
+
   window.addEventListener("message", handleExtensionMessage);
 }
 
@@ -485,24 +491,77 @@ function renderChecklist() {
 
     if (noteInput) {
       noteInput.value = item.notes;
+      // Update note on blur and mark unsaved changes while typing
+      noteInput.addEventListener("input", (e) => {
+        const currentVal = e.target.value || "";
+        if (logChangeBtn) {
+          if (currentVal.trim() !== (item.notes || "").trim()) {
+            logChangeBtn.classList.add("active");
+          } else {
+            logChangeBtn.classList.remove("active");
+          }
+        }
+      });
+
       noteInput.addEventListener("blur", (e) => {
-        const oldNotes = item.notes;
-        item.notes = e.target.value;
-        if (oldNotes !== item.notes) {
-          logChange(item.id, `Notes updated: "${item.notes}"`);
+        const oldNotes = item.notes || "";
+        const newNotes = e.target.value || "";
+        if (oldNotes !== newNotes) {
+          const savedNote = newNotes;
+          // Record the change in the timeline (via logChange) but clear the editable field
+          logChange(item.id, `Notes updated: "${savedNote}"`);
+          // Clear the live note so the UI doesn't retain transient text
+          item.notes = "";
+          if (noteInput) noteInput.value = "";
           saveProjectsToStorage();
           emitProjectState();
           renderTimeline();
+          if (logChangeBtn) logChangeBtn.classList.remove("active");
         }
       });
     }
 
     if (logChangeBtn) {
       logChangeBtn.addEventListener("click", () => {
+        // If there are unsaved notes in the textarea, commit them as a notes update
+        const currentNoteVal = noteInput ? (noteInput.value || "") : "";
+        if (currentNoteVal.trim() !== (item.notes || "").trim()) {
+          // Save the note as a timeline entry, then clear the editable field
+          const savedNote = currentNoteVal;
+          const msg = `Notes updated: "${savedNote}"`;
+          logChange(item.id, msg);
+          // persist timeline and changes
+          item.changes = item.changes || [];
+          const ts = new Date().toLocaleString();
+          item.changes.push({ message: msg, timestamp: ts });
+          project.timeline = project.timeline || [];
+          project.timeline.push({ timestamp: ts, itemId: item.id, itemText: item.text, message: msg });
+          // Clear the live note field so user can continue
+          item.notes = "";
+          if (noteInput) noteInput.value = "";
+          saveProjectsToStorage();
+          emitProjectState();
+          renderTimeline();
+          renderChecklist();
+          return;
+        }
+
+        // Otherwise if the textarea matches the already-saved note, just clear it (avoid duplicate timeline entries)
+        if (currentNoteVal.trim() && currentNoteVal.trim() === (item.notes || "").trim()) {
+          item.notes = "";
+          if (noteInput) noteInput.value = "";
+          saveProjectsToStorage();
+          emitProjectState();
+          renderChecklist();
+          return;
+        }
+
+        // Otherwise prompt for a custom change message
         const message = prompt(`Log a change for: ${item.text}\n\nEnter change details:`);
         if (message) {
           logChange(item.id, message);
           saveProjectsToStorage();
+          emitProjectState();
           renderTimeline();
           renderChecklist();
         }
@@ -511,8 +570,20 @@ function renderChecklist() {
 
     if (removeBtn) {
       removeBtn.addEventListener("click", () => {
+        // Capture item text before removal so timeline can reference it
+        const removedItemText = item.text;
         project.checklist = project.checklist.filter((i) => i.id !== item.id);
-        logChange(item.id, "Item removed from checklist");
+
+        const tsRemove = new Date().toLocaleString();
+        // Push a removal event to the timeline with the removed item's text
+        project.timeline = project.timeline || [];
+        project.timeline.push({
+          timestamp: tsRemove,
+          itemId: item.id,
+          itemText: removedItemText,
+          message: "Item removed from checklist",
+        });
+
         saveProjectsToStorage();
         emitProjectState();
         renderChecklist();
@@ -654,6 +725,52 @@ function exportCurrentProject() {
   URL.revokeObjectURL(url);
 
   setStatus("✓ Project exported as JSON", "success");
+}
+
+function exportTimelineJSON() {
+  if (!currentProjectId) {
+    setStatus("Please select a project to export timeline.", "error");
+    return;
+  }
+  const project = projects[currentProjectId];
+  const data = project.timeline || [];
+  const json = JSON.stringify(data, null, 2);
+  const blob = new Blob([json], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${project.name}-timeline-${Date.now()}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  setStatus("✓ Timeline exported as JSON", "success");
+}
+
+function exportTimelineMarkdown() {
+  if (!currentProjectId) {
+    setStatus("Please select a project to export timeline.", "error");
+    return;
+  }
+  const project = projects[currentProjectId];
+  const events = project.timeline || [];
+  const lines = [];
+  lines.push(`# Timeline for ${project.name}`);
+  lines.push("\n");
+  events
+    .slice()
+    .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+    .forEach((ev) => {
+      lines.push(`- **${ev.timestamp}** — _${ev.itemText || "(item)"}_: ${ev.message}`);
+    });
+
+  const md = lines.join("\n");
+  const blob = new Blob([md], { type: "text/markdown" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${project.name}-timeline-${Date.now()}.md`;
+  a.click();
+  URL.revokeObjectURL(url);
+  setStatus("✓ Timeline exported as Markdown", "success");
 }
 
 function emitProjectState() {
