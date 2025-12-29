@@ -9,6 +9,7 @@
 
 let currentProjectId = null;
 let projects = {}; // { projectId: { id, name, researchPlan, projectStage, config, checklist, timeline } }
+let reconcileInitialized = false;
 
 const STORAGE_KEY = "genai_projects";
 const CURRENT_PROJECT_KEY = "genai_current_project";
@@ -61,6 +62,8 @@ document.addEventListener("DOMContentLoaded", () => {
   if (savedProjectId && projects[savedProjectId]) {
     switchProject(savedProjectId);
   }
+  // Initialize reconcile handlers early so modal controls work even if visible
+  initReconcileHandlers();
 });
 
 function setupEventListeners() {
@@ -70,6 +73,8 @@ function setupEventListeners() {
 
   newProjectBtn.addEventListener("click", createNewProject);
   deleteProjectBtn.addEventListener("click", deleteCurrentProject);
+  const reconcileBtn = document.getElementById("reconcile-btn");
+  if (reconcileBtn) reconcileBtn.addEventListener("click", openReconcileModal);
 
   configForm.addEventListener("submit", generateChecklistForCurrentProject);
   exportBtn.addEventListener("click", exportCurrentProject);
@@ -110,6 +115,214 @@ function setupEventListeners() {
   if (exportTimelineMdBtn) exportTimelineMdBtn.addEventListener("click", exportTimelineMarkdown);
 
   window.addEventListener("message", handleExtensionMessage);
+}
+
+// ================= Reconcile modal flow =================
+function openReconcileModal() {
+  if (!currentProjectId) return;
+  const modal = document.getElementById("reconcile-modal");
+  const suggestBtn = document.getElementById("reconcile-suggest");
+  modal.hidden = false;
+  renderReconcileCurrent();
+
+  function closeModal() {
+    modal.hidden = true;
+    document.getElementById("reconcile-plan").value = "";
+    document.getElementById("reconcile-status").textContent = "";
+    document.getElementById("reconcile-preview").hidden = true;
+  }
+
+  // Ensure handlers are initialized once (in case modal was visible before wiring)
+  initReconcileHandlers();
+
+  if (!reconcileInitialized) {
+    reconcileInitialized = true;
+  }
+
+  // attach a close callback reference for other handlers
+  window._closeReconcileModal = closeModal;
+
+  suggestBtn.addEventListener("click", async () => {
+    const planText = document.getElementById("reconcile-plan").value || "";
+    if (!planText || planText.trim().length < 25) {
+      setStatus("Please paste at least a short research plan (25+ chars) in the Reconcile box.", "error");
+      return;
+    }
+
+    const statusEl = document.getElementById("reconcile-status");
+    statusEl.textContent = "Suggesting checklist changes...";
+
+    try {
+      const project = projects[currentProjectId];
+      const resp = await fetch("/api/reconcile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          researchPlan: planText,
+          projectStage: project.projectStage,
+          config: project.config,
+        }),
+      });
+
+      const payload = await resp.json();
+      if (!resp.ok) throw new Error(payload.error || "Failed to get suggestion");
+
+      const proposed = parseChecklistItems(payload.checklist);
+      renderReconcileProposed(proposed);
+      document.getElementById("reconcile-preview").hidden = false;
+      statusEl.textContent = "Preview ready";
+    } catch (err) {
+      statusEl.textContent = "Error: " + (err.message || err);
+    }
+    });
+
+    // apply buttons handled in initReconcileHandlers as well
+
+  // apply handlers are attached via initReconcileHandlers
+}
+
+// Apply reconcile globally so handlers can call it
+function applyReconcile(mode) {
+  if (!currentProjectId) return;
+
+  const project = projects[currentProjectId];
+  const existing = project.checklist || [];
+
+  // gather kept current items
+  const keepCheckboxes = document.querySelectorAll('#reconcile-current input[type="checkbox"]');
+  const keepIds = new Set();
+  keepCheckboxes.forEach((cb) => {
+    if (cb.checked) keepIds.add(cb.getAttribute('data-id'));
+  });
+  const keptItems = existing.filter((i) => keepIds.has(i.id));
+
+  // gather proposed checked items
+  const proposedEls = document.querySelectorAll('#reconcile-proposed .reconcile-item');
+  const proposedChecked = [];
+  proposedEls.forEach((el) => {
+    const cb = el.querySelector('input[type="checkbox"]');
+    if (cb && cb.checked) {
+      proposedChecked.push({ text: el.dataset.text, category: el.dataset.category });
+    }
+  });
+
+  const newList = [];
+  if (mode === 'replace') {
+    // replace: use only proposedChecked
+    proposedChecked.forEach((p) => {
+      newList.push({ id: `item-${Math.random().toString(36).substr(2,9)}`, text: p.text, category: p.category || 'General', checked: false, notes: '', changes: [] });
+    });
+  } else {
+    // merge: start with kept items, then add proposedChecked if not duplicate
+    const seen = new Set();
+    keptItems.forEach((it) => { seen.add(it.text.trim()); newList.push(it); });
+    proposedChecked.forEach((p) => {
+      if (!seen.has(p.text.trim())) {
+        seen.add(p.text.trim());
+        newList.push({ id: `item-${Math.random().toString(36).substr(2,9)}`, text: p.text, category: p.category || 'General', checked: false, notes: '', changes: [] });
+      }
+    });
+  }
+
+  // compute added and removed items for timeline
+  const oldTexts = new Map(existing.map((i) => [i.text.trim(), i]));
+  const newTexts = new Set(newList.map((i) => i.text.trim()));
+  const removed = existing.filter((i) => !newTexts.has(i.text.trim()));
+  const added = newList.filter((i) => !oldTexts.has(i.text.trim()));
+
+  // apply
+  project.checklist = newList;
+  project.timeline = project.timeline || [];
+  const ts = new Date().toLocaleString();
+  if (removed.length) {
+    removed.forEach((r) => {
+      project.timeline.push({ timestamp: ts, itemId: r.id, itemText: r.text, message: 'Item removed via reconcile' });
+    });
+  }
+  if (added.length) {
+    added.forEach((a) => {
+      project.timeline.push({ timestamp: ts, itemId: a.id, itemText: a.text, message: 'Item added via reconcile' });
+      a.changes = a.changes || [];
+      a.changes.push({ message: 'Item added via reconcile', timestamp: ts });
+    });
+  }
+
+  // record overall reconcile event
+  project.timeline.push({ timestamp: ts, itemId: null, itemText: null, message: `Reconciled checklist (${mode}) using new research plan` });
+
+  saveProjectsToStorage();
+  emitProjectState();
+  renderChecklist();
+  renderTimeline();
+  // close modal immediately and switch to timeline so user sees results
+  const statusEl = document.getElementById('reconcile-status');
+  if (statusEl) statusEl.textContent = `Applied (${mode})`;
+  if (window._closeReconcileModal) window._closeReconcileModal();
+  // show timeline tab and render
+  switchTab(TAB_KEYS.TIMELINE);
+  renderTimeline();
+}
+
+function renderReconcileCurrent() {
+  const container = document.getElementById("reconcile-current");
+  container.innerHTML = "";
+  const project = projects[currentProjectId];
+  const items = project.checklist || [];
+  if (items.length === 0) {
+    container.innerHTML = "<div class='empty'>No checklist items</div>";
+    return;
+  }
+  items.forEach((it) => {
+    const div = document.createElement("div");
+    div.className = "reconcile-item";
+    div.innerHTML = `<label><input type='checkbox' data-id='${it.id}' checked /> ${escapeHtml(it.text)}</label>`;
+    container.appendChild(div);
+  });
+}
+
+function renderReconcileProposed(proposed) {
+  const container = document.getElementById("reconcile-proposed");
+  container.innerHTML = "";
+  proposed.forEach((p) => {
+    const id = `proposed-${Math.random().toString(36).substr(2,9)}`;
+    const div = document.createElement("div");
+    div.className = "reconcile-item";
+    div.dataset.itemId = id;
+    div.dataset.text = p.text;
+    div.dataset.category = p.category || "General";
+    div.innerHTML = `
+      <label style="display:flex; gap:0.5rem; align-items:flex-start;">
+        <input type="checkbox" data-proposed-id="${id}" checked />
+        <div style="flex:1"><strong>${escapeHtml(p.category || 'General')}</strong>: ${escapeHtml(p.text)}</div>
+      </label>
+    `;
+    container.appendChild(div);
+  });
+}
+
+function initReconcileHandlers() {
+  if (window.__reconcileHandlersInitialized) return;
+  const close = document.getElementById("reconcile-close");
+  const cancel = document.getElementById("reconcile-cancel");
+  const back = document.getElementById("reconcile-back");
+  const applyMerge = document.getElementById("reconcile-apply-merge");
+  const applyReplace = document.getElementById("reconcile-apply-replace");
+
+  function closeModal() {
+    if (window._closeReconcileModal) window._closeReconcileModal();
+  }
+
+  if (close) close.addEventListener("click", closeModal);
+  if (cancel) cancel.addEventListener("click", closeModal);
+  if (back) back.addEventListener("click", () => {
+    document.getElementById("reconcile-preview").hidden = true;
+    document.getElementById("reconcile-status").textContent = "";
+  });
+
+  if (applyMerge) applyMerge.addEventListener("click", () => applyReconcile("merge"));
+  if (applyReplace) applyReplace.addEventListener("click", () => applyReconcile("replace"));
+
+  window.__reconcileHandlersInitialized = true;
 }
 
 // ============================================================================
@@ -188,6 +401,8 @@ function switchProject(projectId) {
 
   projectSelector.value = projectId;
   deleteProjectBtn.hidden = false;
+  const reconcileBtn = document.getElementById("reconcile-btn");
+  if (reconcileBtn) reconcileBtn.hidden = false;
   renderProjectsList();
   renderChecklist();
   renderTimeline();
@@ -221,6 +436,8 @@ function deleteCurrentProject() {
   configForm.hidden = true;
   checklistSection.hidden = true;
   timelineSection.hidden = true;
+  const reconcileBtn = document.getElementById("reconcile-btn");
+  if (reconcileBtn) reconcileBtn.hidden = true;
   setStatus(`✓ Project "${projectName}" deleted`, "success");
   // Emit updated state so the extension clears any stored project data
   emitProjectState();
@@ -692,6 +909,11 @@ function switchTab(tabKey) {
   tabContents.forEach((content) => {
     content.classList.toggle("active", content.id === tabKey);
   });
+  // Hide reconcile button on Setup tab to avoid exposing reconcile in setup view
+  const reconcileBtn = document.getElementById("reconcile-btn");
+  if (reconcileBtn) {
+    reconcileBtn.hidden = tabKey === TAB_KEYS.SETUP;
+  }
 }
 
 // ============================================================================
@@ -871,5 +1093,6 @@ function escapeHtml(text) {
     '"': "&quot;",
     "'": "&#039;",
   };
-  return text.replace(/[&<>"']/g, (m) => map[m]);
+  const s = text === null || text === undefined ? "" : String(text);
+  return s.replace(/[&<>"']/g, (m) => map[m]);
 }

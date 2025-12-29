@@ -25,6 +25,7 @@
           </select>
           <button id="new-project-btn" class="primary-btn">+ New Project</button>
           <button id="delete-project-btn" class="danger-btn" hidden>Delete Project</button>
+          <button id="reconcile-btn" class="secondary-btn" hidden>Reconcile checklist</button>
         </div>
         <div id="projects-list" class="projects-list" hidden></div>
       </div>
@@ -161,6 +162,42 @@
         </div>
       </div>
     </main>
+
+    <!-- Reconcile Modal -->
+    <div id="reconcile-modal" class="modal" hidden>
+      <div class="modal-backdrop"></div>
+      <div class="modal-body">
+        <header>
+          <h3>Reconcile checklist with new research plan</h3>
+          <button id="reconcile-close" class="close-btn">×</button>
+        </header>
+        <div class="reconcile-steps">
+          <div class="pane left">
+            <h4>Current checklist (select items to KEEP)</h4>
+            <div id="reconcile-current" class="reconcile-list"></div>
+          </div>
+          <div class="pane right">
+            <h4>New research plan (paste or type)</h4>
+            <textarea id="reconcile-plan" placeholder="Paste new research plan or notes here..." rows="12"></textarea>
+            <div style="margin-top:0.5rem; display:flex; gap:0.5rem;">
+              <button id="reconcile-suggest" class="primary-btn">Suggest changes</button>
+              <button id="reconcile-cancel" class="secondary-btn">Cancel</button>
+            </div>
+            <div id="reconcile-status" class="status" style="margin-top:0.5rem"></div>
+          </div>
+        </div>
+
+        <div id="reconcile-preview" hidden>
+          <h4>Preview proposed checklist</h4>
+          <div id="reconcile-proposed" class="reconcile-list"></div>
+          <div style="margin-top:0.75rem; display:flex; gap:0.5rem;">
+            <button id="reconcile-apply-merge" class="primary-btn">Apply (Merge)</button>
+            <button id="reconcile-apply-replace" class="danger-btn">Apply (Replace)</button>
+            <button id="reconcile-back" class="secondary-btn">Back</button>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <script src="app.js"></script>
   </body>

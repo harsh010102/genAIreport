@@ -136,6 +136,64 @@ app.post("/api/checklist", async (req, res) => {
   }
 });
 
+// Minimal reconcile endpoint: accepts plain research plan text and returns proposed checklist
+app.post("/api/reconcile", async (req, res) => {
+  const { researchPlan, projectStage, config, openrouterApiKey, customModel } = req.body || {};
+
+  if (!researchPlan || researchPlan.trim().length < 25) {
+    return res.status(400).json({ error: "Please provide a research plan with at least 25 characters." });
+  }
+
+  const apiKey = openrouterApiKey?.trim() || OPENROUTER_API_KEY;
+  if (!apiKey) return res.status(500).json({ error: "Missing OPENROUTER_API_KEY." });
+
+  const modelToUse = customModel?.trim() || OPENROUTER_MODEL;
+
+  try {
+    const client = new OpenRouter({ apiKey });
+    const prompts = buildUserPrompt({ researchPlan, projectStage, config });
+
+    const stream = await client.chat.send({
+      model: modelToUse,
+      messages: [
+        { role: "system", content: prompts.system },
+        { role: "user", content: prompts.user },
+      ],
+      temperature: config?.temperature ?? 0.35,
+      max_tokens: config?.maxTokens ?? 900,
+      stream: true,
+    });
+
+    let responseText = "";
+    for await (const chunk of stream) {
+      const content = chunk.choices[0]?.delta?.content;
+      if (content) responseText += content;
+    }
+
+    const trimmed = responseText.trim();
+    let parsed = null;
+    try { parsed = JSON.parse(trimmed); } catch (e) {
+      const jsonMatch = trimmed.match(/\{[\s\S]*\}|\[[\s\S]*\]/m);
+      if (jsonMatch) {
+        try { parsed = JSON.parse(jsonMatch[0]); } catch (e2) { parsed = null; }
+      }
+    }
+
+    let checklistItems = null;
+    if (parsed) {
+      if (Array.isArray(parsed)) checklistItems = parsed;
+      else if (Array.isArray(parsed.items)) checklistItems = parsed.items;
+    }
+
+    const checklistPayload = checklistItems || trimmed;
+
+    res.json({ checklist: checklistPayload, generatedAt: new Date().toISOString(), model: modelToUse, raw: trimmed });
+  } catch (err) {
+    console.error("reconcile error", err?.response?.data || err.message);
+    res.status(500).json({ error: "Unable to reconcile right now.", details: err?.message });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`GenAI reporting tool running on http://localhost:${PORT}`);
 });

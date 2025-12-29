@@ -131,6 +131,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // initial load
   refresh();
+
+  // Auto-refresh when storage changes (so popup reflects updates from the webapp)
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== 'local') return;
+    if (changes.genai_state) {
+      refresh();
+    }
+  });
 });
 
 function escapeHtml(text) {
