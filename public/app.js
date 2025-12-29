@@ -81,6 +81,17 @@ function setupEventListeners() {
     });
   });
 
+  // Toggle for advanced/additional settings in the setup form
+  const toggleAdvancedBtn = document.getElementById("toggle-advanced-btn");
+  const additionalSettings = document.getElementById("additional-settings");
+  if (toggleAdvancedBtn && additionalSettings) {
+    toggleAdvancedBtn.addEventListener("click", () => {
+      const wasHidden = additionalSettings.hidden;
+      additionalSettings.hidden = !wasHidden;
+      toggleAdvancedBtn.textContent = wasHidden ? "Hide additional settings" : "Additional settings";
+    });
+  }
+
   // Custom checklist add button
   const addItemBtn = document.getElementById("add-item-btn");
   const newItemText = document.getElementById("new-item-text");
@@ -149,6 +160,11 @@ function createNewProject() {
   switchProject(projectId);
   // Ensure the setup form is visible when a project is created
   configForm.hidden = false;
+  // Reset advanced settings collapsed state
+  const additionalSettings = document.getElementById("additional-settings");
+  const toggleAdvancedBtn = document.getElementById("toggle-advanced-btn");
+  if (additionalSettings) additionalSettings.hidden = true;
+  if (toggleAdvancedBtn) toggleAdvancedBtn.textContent = "Additional settings";
   setStatus(`✓ Project "${name}" created`, "success");
 }
 
@@ -181,6 +197,11 @@ function switchProject(projectId) {
   // Emit state for extension
   // Make sure the config form is visible for the active project
   configForm.hidden = false;
+  // Ensure advanced settings are collapsed by default when switching projects
+  const additionalSettings = document.getElementById("additional-settings");
+  const toggleAdvancedBtn = document.getElementById("toggle-advanced-btn");
+  if (additionalSettings) additionalSettings.hidden = true;
+  if (toggleAdvancedBtn) toggleAdvancedBtn.textContent = "Additional settings";
   emitProjectState();
 }
 

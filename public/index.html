@@ -40,22 +40,6 @@
       <div id="setup" class="tab-content active">
         <form id="config-form" hidden>
           <fieldset>
-            <legend>OpenRouter Credentials (Optional)</legend>
-            <div class="field-help">
-              Leave blank to use server defaults. Add your own API key and model to override.
-            </div>
-            <label>
-              OpenRouter API Key
-              <input type="password" name="openrouterApiKey" placeholder="sk-..." />
-            </label>
-
-            <label>
-              Model ID (e.g., openai/gpt-4, x-ai/grok-2)
-              <input type="text" name="customModel" placeholder="amazon/nova-2-lite-v1:free" />
-            </label>
-          </fieldset>
-
-          <fieldset>
             <legend>Research Plan</legend>
             <label>
               Research Plan or Project Brief
@@ -86,28 +70,52 @@
               <input type="text" name="modelName" placeholder="grok-4.1-fast" required />
             </label>
 
+            <div style="margin-top:0.5rem;">
+              <button type="button" id="toggle-advanced-btn" class="secondary-btn" title="Show optional advanced model and prompt settings">Additional settings</button>
+              <div class="field-help" style="margin-top:0.25rem; font-size:0.9rem; color:var(--muted,#94a3b8);">
+                Advanced settings are optional — use these to customize the system prompt, sampling temperature, token limit, or Top P.
+              </div>
+            </div>
+
+            <div id="additional-settings" hidden>
+              <label>
+                Initial System Prompt
+                <textarea
+                  name="systemPrompt"
+                  placeholder="Enter your system prompt..."
+                  rows="6"
+                ></textarea>
+              </label>
+
+              <label>
+                Temperature (0.0 - 2.0)
+                <input type="number" name="temperature" min="0" max="2" step="0.1" value="0.7" />
+              </label>
+
+              <label>
+                Max Tokens
+                <input type="number" name="maxTokens" min="1" value="900" />
+              </label>
+
+              <label>
+                Top P (0.0 - 1.0)
+                <input type="number" name="topP" min="0" max="1" step="0.05" value="1" />
+              </label>
+            </div>
+          </fieldset>
+
+          <!-- Provider credentials are intentionally outside the LLM config box -->
+          <fieldset style="margin-top:0.75rem;">
+            <legend>Optional Provider Credentials</legend>
+            <div class="field-help">Provide an API key and model ID only if you want to override the server defaults.</div>
             <label>
-              Initial System Prompt
-              <textarea
-                name="systemPrompt"
-                placeholder="Enter your system prompt..."
-                rows="6"
-              ></textarea>
+              OpenRouter API Key
+              <input type="password" name="openrouterApiKey" placeholder="sk-..." />
             </label>
 
             <label>
-              Temperature (0.0 - 2.0)
-              <input type="number" name="temperature" min="0" max="2" step="0.1" value="0.7" />
-            </label>
-
-            <label>
-              Max Tokens
-              <input type="number" name="maxTokens" min="1" value="900" />
-            </label>
-
-            <label>
-              Top P (0.0 - 1.0)
-              <input type="number" name="topP" min="0" max="1" step="0.05" value="1" />
+              Model ID (e.g., openai/gpt-4, x-ai/grok-2)
+              <input type="text" name="customModel" placeholder="amazon/nova-2-lite-v1:free" />
             </label>
           </fieldset>
 

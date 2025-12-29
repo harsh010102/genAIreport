@@ -65,20 +65,6 @@ document.addEventListener("DOMContentLoaded", () => {
       const span = document.createElement("span");
       span.textContent = item.text;
 
-      const editBtn = document.createElement("button");
-      editBtn.textContent = "Edit notes";
-      editBtn.addEventListener("click", () => {
-        const newNotes = prompt("Edit notes for:\n" + item.text, item.notes || "");
-        if (newNotes !== null) {
-          item.notes = newNotes;
-          const ts = new Date().toLocaleString();
-          item.changes = item.changes || [];
-          item.changes.push({ message: `Notes updated: "${newNotes}"`, timestamp: ts });
-          state.timeline = state.timeline || [];
-          state.timeline.push({ timestamp: ts, itemId: item.id, itemText: item.text, message: `Notes updated` });
-          saveState(state, () => renderChecklist(state));
-        }
-      });
 
       const logBtn = document.createElement("button");
       logBtn.textContent = "Log change";
@@ -100,7 +86,6 @@ document.addEventListener("DOMContentLoaded", () => {
       label.appendChild(checkbox);
       label.appendChild(span);
       el.appendChild(label);
-      el.appendChild(editBtn);
       el.appendChild(logBtn);
 
       checklistContainer.appendChild(el);
